@@ -21,32 +21,6 @@ Backend: Node.js + Express + Socket.IO + MongoDB + JWT + bcrypt
 Database: MongoDB Atlas (chit-chat)
 Deployment: Vercel (Frontend) + Render (Backend)
 
-## 📁 Folder Structure
-
-chit-chat/
-├── server/ # Backend API + Socket.IO
-│ ├── src/
-│ │ ├── config/ # DB connection (db.js)
-│ │ ├── models/ # User.js, Room.js
-│ │ ├── middleware/ # JWT auth (authMiddleware.js)
-│ │ ├── routes/ # authRoutes.js, roomRoutes.js
-│ │ ├── socket/ # Socket.IO logic (index.js)
-│ │ ├── utils/ # Room ID generator
-│ │ └── server.js # Express + Socket server
-│ ├── package.json
-│ └── .env
-├── client/ # React frontend
-│ ├── src/
-│ │ ├── api/ # Axios client (axiosClient.js)
-│ │ ├── components/ # Navbar.jsx, ChatRoom.jsx, etc.
-│ │ ├── context/ # AuthContext.jsx, SocketContext.jsx
-│ │ ├── pages/ # LoginPage.jsx, LobbyPage.jsx
-│ │ └── styles/ # globals.css (dark theme)
-│ ├── index.html
-│ ├── vite.config.js
-│ └── package.json
-├── README.md
-
 ## 🚀 Quick Start (Local Development)
 
 ### Prerequisites
