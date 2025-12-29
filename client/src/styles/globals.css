@@ -1,0 +1,103 @@
+:root {
+  --bg: #050510;
+  --card: #1e1b4b;
+  --accent: #7c3aed;
+  --accent-soft: #4c1d95;
+  --text: #f9fafb;
+  --muted: #9ca3af;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+}
+
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-layout {
+  display: flex;
+  height: calc(100vh - 64px);
+}
+
+@media (max-width: 768px) {
+  .chat-layout {
+    flex-direction: column;
+  }
+}
+
+.card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 16px 20px;
+}
+
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-soft);
+  background: #020617;
+  color: var(--text);
+  outline: none;
+}
+
+.button {
+  background: var(--accent);
+  border-radius: 999px;
+  padding: 10px 18px;
+  border: none;
+  color: white;
+  cursor: pointer;
+}
+
+.button.secondary {
+  background: #111827;
+}
+
+.button.danger {
+  background: #dc2626;
+}
+
+.message-row {
+  display: flex;
+  margin-bottom: 8px;
+}
+
+.message-row.self {
+  justify-content: flex-end;
+}
+
+.message-bubble {
+  max-width: 65%;
+  border-radius: 18px;
+  padding: 10px 14px;
+  background: var(--accent-soft);
+}
+
+.message-bubble.self {
+  background: var(--accent);
+}
+
+.message-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.username-label {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
