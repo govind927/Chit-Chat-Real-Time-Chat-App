@@ -4,13 +4,15 @@ import Navbar from "../components/Navbar.jsx";
 import RoomSidebar from "../components/RoomSidebar.jsx";
 import ChatRoom from "../components/ChatRoom.jsx";
 import axiosClient from "../api/axiosClient.js";
+import { useSocket } from "../context/SocketContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const ChatPage = () => {
   const { roomId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { socket } = useSocket();
+  const { token, user } = useAuth();
 
   const [roomName, setRoomName] = useState(location.state?.roomName || "");
   const [isAdmin, setIsAdmin] = useState(location.state?.isAdmin || false);
@@ -34,6 +36,49 @@ const ChatPage = () => {
     }
   }, [roomId, roomName, navigate]);
 
+  // Socket logic for participants + real-time updates
+  useEffect(() => {
+    if (!socket || !token || !roomId || !user?.username) return;
+
+    // Join room with username
+    socket.emit("joinRoom", { 
+      token, 
+      roomId, 
+      username: user.username 
+    });
+
+    const handleParticipantsUpdate = (participantList) => {
+      console.log("Participants updated:", participantList);
+      setParticipants(participantList);
+    };
+
+    const handleKicked = () => {
+      alert("You were kicked from the room by admin!");
+      navigate("/lobby");
+    };
+
+    const handleChatMessage = (msg) => {
+      // Messages handled in ChatRoom component
+    };
+
+    const handleSystemMessage = (msg) => {
+      // System messages handled in ChatRoom
+    };
+
+    // Socket event listeners
+    socket.on("participantsUpdate", handleParticipantsUpdate);
+    socket.on("kicked", handleKicked);
+    socket.on("chatMessage", handleChatMessage);
+    socket.on("systemMessage", handleSystemMessage);
+
+    return () => {
+      socket.off("participantsUpdate", handleParticipantsUpdate);
+      socket.off("kicked", handleKicked);
+      socket.off("chatMessage", handleChatMessage);
+      socket.off("systemMessage", handleSystemMessage);
+    };
+  }, [socket, token, roomId, user?.username, navigate]);
+
   const handleLeave = async () => {
     try {
       await axiosClient.post("/rooms/leave", { roomId });
@@ -44,18 +89,43 @@ const ChatPage = () => {
   };
 
   const handleDismiss = async () => {
+    if (!confirm("Dismiss room? All data will be permanently deleted!")) return;
+    
     try {
       await axiosClient.post("/rooms/dismiss", { roomId });
+      if (socket) socket.emit("dismissRoom", { token, roomId });
       navigate("/lobby");
     } catch (err) {
       console.error("Dismiss room error:", err);
+      alert("Error dismissing room");
     }
   };
 
   const handleKickUser = (targetSocketId) => {
-    // Socket kick logic handled in ChatRoom component
-    console.log("Kick user:", targetSocketId);
+    if (!socket || !targetSocketId) return;
+    
+    console.log("Kicking user:", targetSocketId);
+    socket.emit("kickUser", { targetSocketId });
   };
+
+  // Don't render until socket is ready and we have room info
+  if (!roomName || participants.length === 0) {
+    return (
+      <div className="app-container" style={{ 
+        display: "flex", 
+        justifyContent: "center", 
+        alignItems: "center", 
+        height: "100vh",
+        background: "#050510"
+      }}>
+        <div style={{ textAlign: "center", color: "#9ca3af" }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>💬</div>
+          <div style={{ fontSize: 18, marginBottom: 8 }}>Joining room...</div>
+          <div style={{ fontSize: 14 }}>Room ID: {roomId}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
@@ -64,16 +134,15 @@ const ChatPage = () => {
         <RoomSidebar
           roomId={roomId}
           roomName={roomName}
-          isAdmin={isAdmin}
           participants={participants}
+          isAdmin={isAdmin}
           onDismiss={handleDismiss}
           onKick={handleKickUser}
         />
         <ChatRoom
           roomId={roomId}
+          participants={participants}  // Pass to ChatRoom for count
           onLeave={handleLeave}
-          onDismiss={handleDismiss}
-          onKickUser={handleKickUser}
         />
       </div>
     </div>

@@ -3,20 +3,16 @@ import { useSocket } from "../context/SocketContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import MessageBubble from "./MessageBubble.jsx";
 
-const formatTime = (iso) => {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-};
-
-const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser }) => {
+const ChatRoom = ({ roomId, onLeave, participants = [] }) => {
   const { socket } = useSocket();
   const { token, user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
-  const [participants, setParticipants] = useState([]);
+  const [roomClosed, setRoomClosed] = useState(false);
+  const [participantsCount, setParticipantsCount] = useState(0);
   const messagesEndRef = useRef(null);
 
-  // Scroll to bottom when new messages arrive
+  // Scroll to bottom
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
@@ -28,102 +24,118 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser }) => {
   useEffect(() => {
     if (!socket || !token || !roomId) return;
 
-    // Join room
-    socket.emit("joinRoom", { token, roomId });
-
     const handleChatMessage = (msg) => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          ...msg,
-          username: msg.username || (msg.userId === user.id ? user.username : "Anonymous")
-        }
-      ]);
+      setMessages((prev) => [...prev, msg]);
     };
 
     const handleSystemMessage = (msg) => {
       setMessages((prev) => [...prev, { ...msg, system: true }]);
     };
 
+    const handleRoomDismissed = (data) => {
+      setRoomClosed(true);
+      setMessages((prev) => [...prev, { 
+        text: data.message, 
+        system: true, 
+        timestamp: data.timestamp,
+        roomClosed: true 
+      }]);
+      alert(data.message);
+      setTimeout(() => onLeave(), 2000);
+    };
+
     const handleKicked = () => {
-      alert("You were kicked from the room by admin.");
+      alert("You were kicked from the room by admin!");
       onLeave();
     };
 
-    const handleRoomDismissed = () => {
-      alert("Room dismissed by admin. No conversation history stored.");
-      onLeave();
-    };
-
-    const handleParticipantsUpdate = (participantList) => {
-      setParticipants(participantList);
-    };
-
-    // Socket event listeners
     socket.on("chatMessage", handleChatMessage);
     socket.on("systemMessage", handleSystemMessage);
-    socket.on("kicked", handleKicked);
     socket.on("roomDismissed", handleRoomDismissed);
-    socket.on("participantsUpdate", handleParticipantsUpdate);
+    socket.on("kicked", handleKicked);
 
     return () => {
       socket.off("chatMessage", handleChatMessage);
       socket.off("systemMessage", handleSystemMessage);
-      socket.off("kicked", handleKicked);
       socket.off("roomDismissed", handleRoomDismissed);
-      socket.off("participantsUpdate", handleParticipantsUpdate);
+      socket.off("kicked", handleKicked);
     };
-  }, [socket, token, roomId, user.id, onLeave]);
+  }, [socket, token, roomId, onLeave]);
+
+  useEffect(() => {
+    setParticipantsCount(participants.length || 0);
+  }, [participants]);
 
   const sendMessage = (e) => {
     e.preventDefault();
-    if (!text.trim() || !socket) return;
+    if (!text.trim() || !socket || roomClosed) return;
 
     socket.emit("chatMessage", { token, roomId, text: text.trim() });
     setText("");
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(e);
-    }
+  const formatTime = (iso) => {
+    const d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  if (roomClosed) {
+    return (
+      <div className="card" style={{ 
+        flex: 1, display: "flex", flexDirection: "column", height: "100%" 
+      }}>
+        <div style={{
+          flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+          color: "#ef4444", fontSize: 18, fontWeight: 600
+        }}>
+          🚫 Room closed by admin
+        </div>
+        <button className="button" onClick={onLeave} style={{ margin: 16 }}>
+          Return to Lobby
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="card" style={{ 
-      flex: 1, 
-      display: "flex", 
-      flexDirection: "column", 
-      height: "100%" 
-    }}>
-      {/* Messages container */}
-      <div 
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "16px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "8px"
-        }}
-      >
+    <div className="card" style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* Header with participant count */}
+      <div style={{
+        padding: "16px 20px",
+        borderBottom: "1px solid rgba(156, 163, 175, 0.2)",
+        fontSize: 14,
+        color: "#9ca3af"
+      }}>
+        {participantsCount} participant{participantsCount !== 1 ? 's' : ''} online
+      </div>
+
+      {/* Messages */}
+      <div style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: "16px 20px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "8px"
+      }}>
         {messages.map((msg, idx) => (
           msg.system ? (
-            <div
-              key={idx}
-              style={{
-                alignSelf: "center",
-                textAlign: "center",
-                fontSize: "12px",
-                color: "#9ca3af",
-                background: "rgba(156, 163, 175, 0.1)",
-                padding: "6px 12px",
-                borderRadius: "12px",
-                maxWidth: "70%"
-              }}
-            >
+            <div key={idx} style={{
+              alignSelf: "center",
+              textAlign: "center",
+              fontSize: "13px",
+              color: msg.roomClosed ? "#ef4444" : "#9ca3af",
+              background: "rgba(156, 163, 175, 0.1)",
+              padding: "8px 16px",
+              borderRadius: "12px",
+              maxWidth: "80%"
+            }}>
               {msg.text}
+              {msg.timestamp && (
+                <div style={{ fontSize: 11, opacity: 0.7 }}>
+                  {formatTime(msg.timestamp)}
+                </div>
+              )}
             </div>
           ) : (
             <MessageBubble key={idx} msg={msg} />
@@ -132,49 +144,38 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input form */}
-      <form
-        onSubmit={sendMessage}
-        style={{
-          padding: "16px",
-          borderTop: "1px solid rgba(156, 163, 175, 0.2)",
-          display: "flex",
-          gap: "12px",
-          alignItems: "flex-end"
-        }}
-      >
+      {/* Input (disabled if room closed) */}
+      <form onSubmit={sendMessage} style={{
+        padding: "16px 20px",
+        borderTop: "1px solid rgba(156, 163, 175, 0.2)",
+        display: "flex",
+        gap: "12px",
+        alignItems: "flex-end"
+      }}>
         <input
           className="input"
-          placeholder="Type your message..."
+          placeholder={roomClosed ? "Room closed by admin" : "Type your message..."}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onKeyPress={handleKeyPress}
-          style={{ flex: 1, resize: "none" }}
-          rows={1}
+          disabled={roomClosed}
+          style={{ 
+            flex: 1, 
+            background: roomClosed ? "#1e1b4b" : "transparent",
+            opacity: roomClosed ? 0.5 : 1
+          }}
         />
-        <button className="button" type="submit" disabled={!text.trim()}>
-          Send
-        </button>
-        <button
-          className="button secondary"
-          type="button"
-          onClick={onLeave}
-          style={{ padding: "10px 16px" }}
+        <button 
+          className="button" 
+          type="submit" 
+          disabled={!text.trim() || roomClosed}
+          style={{ opacity: roomClosed ? 0.5 : 1 }}
         >
+          {roomClosed ? "Closed" : "Send"}
+        </button>
+        <button className="button secondary" onClick={onLeave}>
           Leave
         </button>
       </form>
-
-      {/* Participants count */}
-      {participants.length > 0 && (
-        <div style={{
-          padding: "0 16px 16px",
-          fontSize: "12px",
-          color: "#9ca3af"
-        }}>
-          {participants.length} participant{participants.length !== 1 ? 's' : ''} online
-        </div>
-      )}
     </div>
   );
 };
