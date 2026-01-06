@@ -2,10 +2,12 @@ import jwt from "jsonwebtoken";
 import Room from "../models/Room.js";
 
 export const initSocket = (io) => {
+  // Decode token and return user id + username from JWT
   const authUser = async (token) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      return { id: decoded.id };
+      // decoded should contain id and username
+      return { id: decoded.id, username: decoded.username };
     } catch {
       return null;
     }
@@ -45,15 +47,14 @@ export const initSocket = (io) => {
         }
         const participantsMap = roomParticipants.get(roomId);
 
-        const username = isAdmin
-          ? room.admin.username
-          : `User-${socket.id.slice(-4)}`;
+        // Use real username
+        const username = isAdmin ? room.admin.username : user.username;
 
         participantsMap.set(socket.id, {
           socketId: socket.id,
           userId: user.id,
           username,
-          isAdmin
+          isAdmin,
         });
 
         const participantsList = Array.from(participantsMap.values());
@@ -62,18 +63,19 @@ export const initSocket = (io) => {
         socket.emit("joinedRoom", {
           roomId,
           isAdmin,
-          participants: participantsList
+          participants: participantsList,
         });
 
         // Update everyone in the room
         io.to(roomId).emit("participantsUpdate", participantsList);
 
+        // System message for others in the room
         socket.to(roomId).emit("systemMessage", {
           text: `${username} joined the room`,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
 
-        console.log(`User ${user.id} joined room ${roomId}`);
+        console.log(`User ${user.id} (${username}) joined room ${roomId}`);
       } catch (err) {
         console.error("joinRoom error:", err);
         socket.emit("errorMessage", "Failed to join room");
@@ -95,12 +97,14 @@ export const initSocket = (io) => {
         const participant = participantsMap?.get(socket.id);
 
         const timestamp = new Date().toISOString();
+
         io.to(roomId).emit("chatMessage", {
           userId: user.id,
-          username: participant?.username || (isAdmin ? "Admin" : "User"),
+          // Prefer participant.username (from joinRoom), fallback to user.username
+          username: participant?.username || user.username || (isAdmin ? "Admin" : "User"),
           text,
           timestamp,
-          isAdmin
+          isAdmin,
         });
       } catch (err) {
         console.error("chatMessage error:", err);
@@ -132,7 +136,7 @@ export const initSocket = (io) => {
         if (kicked) {
           io.to(roomId).emit("systemMessage", {
             text: `${kicked.username} was kicked by admin`,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
         }
       } catch (err) {
@@ -150,7 +154,11 @@ export const initSocket = (io) => {
 
         if (room.admin.toString() !== user.id.toString()) return;
 
-        io.to(roomId).emit("roomDismissed");
+        // Notify everyone and close sockets in that room
+        io.to(roomId).emit("roomDismissed", {
+          message: "Room dismissed by admin. No conversation history stored.",
+          timestamp: new Date().toISOString(),
+        });
         await Room.deleteOne({ _id: room._id });
         io.in(roomId).socketsLeave(roomId);
 

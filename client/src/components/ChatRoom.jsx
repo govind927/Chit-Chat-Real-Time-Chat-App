@@ -8,7 +8,14 @@ const formatTime = (iso) => {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
-const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser, onParticipantsChange }) => {
+const ChatRoom = ({
+  roomId,
+  isAdmin,
+  onLeave,
+  onDismiss,
+  onKickUser,
+  onParticipantsChange,
+}) => {
   const { socket } = useSocket();
   const { token, user } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -25,11 +32,15 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser, onParticipantsChange
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
+  // 1) Only join the room
   useEffect(() => {
     if (!socket || !token || !roomId) return;
-
-    // join room when component mounts
     socket.emit("joinRoom", { token, roomId });
+  }, [socket, token, roomId]);
+
+  // 2) Set up listeners
+  useEffect(() => {
+    if (!socket) return;
 
     const handleChatMessage = (msg) => {
       setMessages((prev) => [...prev, msg]);
@@ -41,7 +52,8 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser, onParticipantsChange
 
     const handleRoomDismissed = (data) => {
       const message =
-        data?.message || "Room dismissed by admin. No conversation history stored.";
+        data?.message ||
+        "Room dismissed by admin. No conversation history stored.";
       const timestamp = data?.timestamp || new Date().toISOString();
 
       setRoomClosed(true);
@@ -51,8 +63,8 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser, onParticipantsChange
           text: message,
           system: true,
           timestamp,
-          roomClosed: true
-        }
+          roomClosed: true,
+        },
       ]);
 
       alert(message);
@@ -97,7 +109,7 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser, onParticipantsChange
       socket.off("joinedRoom", handleJoinedRoom);
       socket.off("errorMessage", handleErrorMessage);
     };
-  }, [socket, token, roomId, onLeave, onParticipantsChange]);
+  }, [socket]);
 
   const sendMessage = (e) => {
     e.preventDefault();
@@ -121,7 +133,7 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser, onParticipantsChange
             justifyContent: "center",
             color: "#ef4444",
             fontSize: 18,
-            fontWeight: 600
+            fontWeight: 600,
           }}
         >
           🚫 Room closed by admin
@@ -146,7 +158,7 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser, onParticipantsChange
           padding: "16px 20px",
           borderBottom: "1px solid rgba(156, 163, 175, 0.2)",
           fontSize: 14,
-          color: "#9ca3af"
+          color: "#9ca3af",
         }}
       >
         {participantsCount} participant{participantsCount !== 1 ? "s" : ""} online
@@ -160,7 +172,7 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser, onParticipantsChange
           padding: "16px 20px",
           display: "flex",
           flexDirection: "column",
-          gap: "8px"
+          gap: "8px",
         }}
       >
         {messages.map((msg, idx) =>
@@ -175,7 +187,7 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser, onParticipantsChange
                 background: "rgba(156, 163, 175, 0.1)",
                 padding: "8px 16px",
                 borderRadius: "12px",
-                maxWidth: "80%"
+                maxWidth: "80%",
               }}
             >
               {msg.text}
@@ -192,7 +204,7 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser, onParticipantsChange
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
+      {/* Input + controls */}
       <form
         onSubmit={sendMessage}
         style={{
@@ -200,7 +212,7 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser, onParticipantsChange
           borderTop: "1px solid rgba(156, 163, 175, 0.2)",
           display: "flex",
           gap: "12px",
-          alignItems: "flex-end"
+          alignItems: "flex-end",
         }}
       >
         <input
@@ -212,7 +224,7 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser, onParticipantsChange
           style={{
             flex: 1,
             background: roomClosed ? "#1e1b4b" : "transparent",
-            opacity: roomClosed ? 0.5 : 1
+            opacity: roomClosed ? 0.5 : 1,
           }}
         />
         <button
@@ -226,6 +238,16 @@ const ChatRoom = ({ roomId, onLeave, onDismiss, onKickUser, onParticipantsChange
         <button className="button secondary" type="button" onClick={onLeave}>
           Leave
         </button>
+        {isAdmin && (
+          <button
+            className="button danger"
+            type="button"
+            onClick={onDismiss}
+            style={{ marginLeft: 8 }}
+          >
+            Dismiss room
+          </button>
+        )}
       </form>
     </div>
   );
