@@ -8,18 +8,46 @@ export const SocketProvider = ({ children }) => {
   const { token } = useAuth();
   const [socket, setSocket] = useState(null);
 
-  const SERVER_URL = import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5000";
+  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const SERVER_URL = API_BASE.replace(/\/api\/?$/, "");
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      if (socket) {
+        socket.disconnect();
+        setSocket(null);
+      }
+      return;
+    }
 
     const s = io(SERVER_URL, {
       transports: ["websocket"],
-      withCredentials: true
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      timeout: 20000
+    });
+
+    s.on("connect", () => {
+      console.log("✅ Socket connected:", s.id);
+    });
+
+    s.on("disconnect", (reason) => {
+      console.log("❌ Socket disconnected:", reason);
+    });
+
+    s.on("connect_error", (err) => {
+      console.error("Socket connect_error:", err.message);
     });
 
     setSocket(s);
-    return () => s.disconnect();
+
+    return () => {
+      s.off("connect");
+      s.off("disconnect");
+      s.off("connect_error");
+      s.disconnect();
+    };
   }, [token, SERVER_URL]);
 
   const value = useMemo(() => ({ socket }), [socket]);
